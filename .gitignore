@@ -1,0 +1,70 @@
+# === Visual Studio ===
+.vs/
+*.suo
+*.user
+*.userosscache
+*.sln.docstates
+
+# === Compilados y binarios ===
+bin/
+build/
+*.exe
+*.dll
+*.lib
+*.obj
+*.pdb
+*.ipch
+
+# === CMake ===
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+CMakeSettings.json
+CMakePresets.json
+
+# === Archivos de configuración de entorno ===
+*.VC.db
+*.VC.VC.opendb
+
+# === Archivos temporales ===
+*.log
+*.tmp
+*.bak
+*.swp
+
+# === Python ===
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.env/
+.venv/
+venv/
+env/
+pip-log.txt
+
+# === SQLite3 ===
+resultados.db
+
+# === Datos generados ===
+folds/train_fold_*.txt
+folds/valid_fold_*.txt
+folds/y_valid_fold_*.txt
+folds/model_fold_*.txt
+folds/predictions_fold_*.txt
+folds/config_train_fold_*.txt
+folds/config_pred_fold_*.txt
+folds/config_train_all.txt
+folds/train_all.txt
+folds/config_pred_final.txt
+folds/predictions_final.txt
+folds/model_all.txt
+modelo_final.txt
+
+# === Archivos de predicciones ===
+*.csv
+*.png
+
+# === Scripts temporales ===
+*.bat
