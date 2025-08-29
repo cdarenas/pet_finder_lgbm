@@ -1,6 +1,6 @@
 # PetFinderLGBM - Adoption Speed Classifier
 
-**Autor:** Cristian Arenas  
+**Autores:** Arenas, Banegas, Gómez Fernández, Marin, Zamora - Grupo 3 MCD Austral   
 **Lenguajes:** C++ y Python  
 **Modelo:** LightGBM (ejecución nativa)  
 **Base de datos:** SQLite3  
