@@ -1,0 +1,4 @@
+task=predict
+input_model=folds/model_all.txt
+data=folds/infer.txt
+output_result=folds/pred_infer.txt

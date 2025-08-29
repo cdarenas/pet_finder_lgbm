@@ -31,6 +31,13 @@ add_custom_command(TARGET PetFinderLGBM POST_BUILD
     $<TARGET_FILE_DIR:PetFinderLGBM>
 )
 
+# Copiar test.csv al directorio de salida
+add_custom_command(TARGET PetFinderLGBM POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+    ${CMAKE_SOURCE_DIR}/test.csv
+    $<TARGET_FILE_DIR:PetFinderLGBM>
+)
+
 # Copiar carpeta scripts al directorio de salida
 add_custom_command(TARGET PetFinderLGBM POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

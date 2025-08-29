@@ -190,3 +190,31 @@ void save_final_model(const std::string& db_path, const std::string& model_path,
 	cout << MAGENTA << "📁 Modelo final guardado en: " << db_path << RESET << endl;
 }
 
+// Verificar si una tabla existe en la base de datos SQLite
+bool sqlite_table_exists(const std::string& db_path, const std::string& table_name) {
+	sqlite3* db = nullptr;
+	if (sqlite3_open(db_path.c_str(), &db) != SQLITE_OK) {
+		if (db) sqlite3_close(db);
+		return false; // si no puedo abrir, asumimos que no existe (o DB ausente)
+	}
+
+	const char* sql =
+		"SELECT name FROM sqlite_master "
+		"WHERE type='table' AND name=?1 LIMIT 1;";
+
+	sqlite3_stmt* stmt = nullptr;
+	bool exists = false;
+
+	if (sqlite3_prepare_v2(db, sql, -1, &stmt, nullptr) == SQLITE_OK) {
+		sqlite3_bind_text(stmt, 1, table_name.c_str(), -1, SQLITE_TRANSIENT);
+		int rc = sqlite3_step(stmt);
+		if (rc == SQLITE_ROW) {
+			exists = true;
+		}
+	}
+
+	if (stmt) sqlite3_finalize(stmt);
+	sqlite3_close(db);
+	return exists;
+}
+

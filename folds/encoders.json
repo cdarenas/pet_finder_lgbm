@@ -1,0 +1,13 @@
+{
+  "Care": {
+    "bueno": 0,
+    "excelente": 1,
+    "otro": 2,
+    "regular": 3
+  },
+  "ColorPattern": {
+    "multicolors": 0,
+    "one_color": 1,
+    "two_colors": 2
+  }
+}

@@ -25,6 +25,7 @@
 #include "io_utils.hpp"
 #include "metrics.hpp"
 #include "database.hpp"
+#include "optuna_report.hpp"
 #include <windows.h>
 
 // Códigos ANSI para color
@@ -70,12 +71,12 @@ int main() {
 		string config_pred = (fold_dir / ("config_pred_fold_" + to_string(fold) + ".txt")).string();
 
 		if (system((lightgbm_path.string() + " config=" + config_train).c_str()) != 0) {
-			cerr << RED << BOLD << "Error en entrenamiento del fold " << fold << endl;
+			cerr << RED << BOLD << "Error en entrenamiento del fold " << fold << RESET << endl;
 			continue;
 		}
 
 		if (system((lightgbm_path.string() + " config=" + config_pred).c_str()) != 0) {
-			cerr << RED << BOLD << "Error en prediccion del fold " << fold << endl;
+			cerr << RED << BOLD << "Error en prediccion del fold " << fold << RESET << endl;
 			continue;
 		}
 
@@ -84,7 +85,7 @@ int main() {
 		vector<int> y_pred = read_predicted_classes(pred_file);
 
 		if (y_true.size() != y_pred.size()) {
-			cerr << RED << BOLD << "Tamaño inconsistente en fold " << fold << endl;
+			cerr << RED << BOLD << "Tamaño inconsistente en fold " << fold << RESET << endl;
 			continue;
 		}
 
@@ -92,7 +93,7 @@ int main() {
 		double f1 = f1_score_macro(y_true, y_pred);
 		total_acc += acc;
 		total_f1 += f1;
-		double kappa = cohen_kappa(y_true, y_pred);
+		double kappa = quadratic_weighted_kappa(y_true, y_pred, NUM_CLASSES);
 		total_kappa += kappa;
 
 		cout << GREEN << BOLD << "Fold " << fold << " - Accuracy: " << acc << ", F1 macro: " << f1 << ", Kappa: " << kappa << RESET << endl;
@@ -151,6 +152,87 @@ int main() {
 
 	global_csv.close();
 
+	// (Nuevo) Reporte de Optuna usando la base que deja el script del profe en 'folds'
+	generate_optuna_report(fold_dir, exe_path);
+
+	// =============== HOLDOUT (20%) ===============
+	{
+		fs::path cfg_train_hold = fold_dir / "config_train_holdout.txt";
+		fs::path cfg_pred_hold = fold_dir / "config_pred_holdout.txt";
+		fs::path pred_hold = fold_dir / "predictions_holdout.txt";  // lo genera LightGBM al predecir
+		fs::path y_hold = fold_dir / "y_holdout_valid.txt";
+		fs::path model_hold = fold_dir / "model_holdout.txt";        // lo genera LightGBM al entrenar
+
+		if (!fs::exists(cfg_train_hold) || !fs::exists(cfg_pred_hold) || !fs::exists(y_hold)) {
+			cerr << YELLOW << "[WARN] Archivos de HOLDOUT no encontrados en " << fold_dir
+				<< ". Generá primero con el script de Python: "
+				<< "config_train_holdout.txt / config_pred_holdout.txt / y_holdout_valid.txt."
+				<< RESET << endl;
+		}
+		else {
+			cout << CYAN << BOLD << "\n=== HOLDOUT (20%) ===" << RESET << endl;
+
+			// Entrenamiento holdout
+			string cmd_train_hold = lightgbm_path.string() + " config=" + cfg_train_hold.string();
+			cout << "[RUN] " << cmd_train_hold << endl;
+			if (system(cmd_train_hold.c_str()) != 0) {
+				cerr << RED << BOLD << "[ERROR] LightGBM falló entrenando HOLDOUT." << RESET << endl;
+			}
+
+			// Predicción holdout
+			string cmd_pred_hold = lightgbm_path.string() + " config=" + cfg_pred_hold.string();
+			cout << "[RUN] " << cmd_pred_hold << endl;
+			if (system(cmd_pred_hold.c_str()) != 0) {
+				cerr << RED << BOLD << "[ERROR] LightGBM falló prediciendo HOLDOUT." << RESET << endl;
+			}
+
+			// Leer y evaluar
+			vector<int> y_true_hold = read_labels(y_hold.string());
+			vector<int> y_pred_hold = read_predicted_classes(pred_hold.string());
+
+			if (y_true_hold.empty() || y_true_hold.size() != y_pred_hold.size()) {
+				cerr << RED << BOLD << "[ERROR] Tamaños inválidos en HOLDOUT: y_true="
+					<< y_true_hold.size() << " y_pred=" << y_pred_hold.size() << RESET << endl;
+			}
+			else {
+				double acc_hold = accuracy(y_true_hold, y_pred_hold);
+				double f1_hold = f1_score_macro(y_true_hold, y_pred_hold);
+				double kappa_hold = quadratic_weighted_kappa(y_true_hold, y_pred_hold, NUM_CLASSES);
+
+				cout << GREEN << BOLD << "[HOLDOUT] "
+					<< "Acc=" << acc_hold
+					<< " | F1macro=" << f1_hold
+					<< " | Kappa=" << kappa_hold
+					<< " | n=" << y_true_hold.size() << RESET << endl;
+
+				// Matriz de confusión (CSV)
+				vector<vector<int>> m(NUM_CLASSES, vector<int>(NUM_CLASSES, 0));
+				for (size_t i = 0; i < y_true_hold.size(); ++i) m[y_true_hold[i]][y_pred_hold[i]]++;
+				ofstream mfile((exe_path / "matriz_confusion_holdout.csv").string());
+				for (int i = 0; i < NUM_CLASSES; ++i) {
+					for (int j = 0; j < NUM_CLASSES; ++j) {
+						mfile << m[i][j] << (j + 1 < NUM_CLASSES ? "," : "\n");
+					}
+				}
+				mfile.close();
+
+				// CSV diagnóstico y_true vs y_pred
+				save_combined_csv((exe_path / "y_pred_vs_true_holdout.csv").string(),
+					y_true_hold, y_pred_hold);
+
+				// Persistir en SQLite (igual que los folds)
+				string conf_str = read_config(cfg_train_hold.string());
+				int result_id = insert_result_sqlite(acc_hold, f1_hold, kappa_hold,
+					model_hold.string(),
+					cfg_train_hold.string(),
+					conf_str);
+				if (result_id != -1) {
+					insert_predictions_sqlite(y_true_hold, y_pred_hold, result_id);
+				}
+			}
+		}
+	}
+
 	save_best_model();
 	save_best_model_by_kappa();
 
@@ -190,11 +272,26 @@ int main() {
 
 	string train_all_file = (fold_dir / "train_all.txt").string();
 	string config_final_file = (fold_dir / "config_train_all.txt").string();
-	string final_model_file = (fold_dir / "final_model.txt").string();
+
+	{
+		fs::path bin_cache = fold_dir / "train_all.txt.bin";
+		std::error_code ec;
+		if (fs::exists(bin_cache, ec)) {
+			fs::remove(bin_cache, ec);
+			if (ec) {
+				cerr << YELLOW << "[WARN] No se pudo borrar " << bin_cache.string()
+					<< " (" << ec.message() << ")" << RESET << endl;
+			}
+			else {
+				cout << GREEN << "[OK] Limpiado cache binario: " << bin_cache.string() << RESET << endl;
+			}
+		}
+	}
 
 	string final_cmd = lightgbm_path.string() + " config=" + config_final_file;
 	if (system(final_cmd.c_str()) == 0) {
-		cout << GREEN << BOLD << "✅ Modelo final entrenado correctamente: " << final_model_file << RESET << endl;
+		cout << GREEN << BOLD << "✅ Modelo final entrenado correctamente: "
+			<< (fold_dir / "model_all.txt").string() << RESET << endl;
 	}
 	else {
 		cerr << RED << BOLD << "❌ Error al entrenar el modelo final." << RESET << endl;
@@ -204,99 +301,42 @@ int main() {
 	fs::path final_config = exe_path / "folds" / "config_train_all.txt";
 	save_final_model("resultados.db", final_model.string(), final_config.string());
 
-	// -----------------EVALUACIÓN FINAL DEL MODELO-----------------
-	cout << GREEN << "\nEvaluando modelo final sobre todos los datos..." << RESET << endl;
-
-	fs::path model_final = exe_path / "modelo_final.txt";
-	string pred_final = (fold_dir / "predictions_final.txt").string();
-	string config_pred_final = (fold_dir / "config_pred_final.txt").string();
-
-	// Crear archivo de predicción para el modelo final
-	ofstream fcfg(config_pred_final);
-	fcfg << "task=predict\n";
-	fcfg << "input_model=" << model_final.string() << "\n";
-	fcfg << "data=" << train_all_file << "\n";
-	fcfg << "output_result=" << pred_final << "\n";
-	fcfg.close();
-
-	// Ejecutar predicción
-	if (system((lightgbm_path.string() + " config=" + config_pred_final).c_str()) != 0) {
-		cerr << RED << BOLD << "❌ Error en prediccion con modelo final." << RESET << endl;
+	// INFERENCIA después de entrenar el modelo final
+	fs::path infer_cfg = exe_path / "folds" / "config_pred_infer.txt";
+	if (fs::exists(infer_cfg)) {
+		cout << YELLOW << "\n=== Inferencia final sobre test.csv ===\n";
+		string infer_cmd = lightgbm_path.string() + " config=" + infer_cfg.string();
+		if (system(infer_cmd.c_str()) == 0) {
+			cout << GREEN << "[OK] Predicciones guardadas en folds/pred_infer.txt\n";
+		}
+		else {
+			cerr << RED << BOLD << "❌ Error al entrenar el modelo final." << RESET << endl;
+		}
 	}
 	else {
-		cout << RED << BOLD << "✅ Prediccion con modelo final realizada." << RESET << endl;
+		std::cout << "[INFO] No se encontró folds/config_pred_infer.txt — se omite inferencia final.\n";
+	}
 
-		// Leer etiquetas verdaderas (de train_all)
-		vector<int> y_true_final;
-		ifstream fin(train_all_file);
-		string line;
-		while (getline(fin, line)) {
-			stringstream ss(line);
-			int label;
-			ss >> label;
-			y_true_final.push_back(label);
+	const std::string pred_path = "folds/pred_infer.txt";
+	if (!fs::exists(pred_path) || fs::file_size(pred_path) == 0) {
+		std::cerr << "[ERROR] La prediccion no genero salida. Revisa el log anterior." << std::endl;
+		return 3;
+	}
+
+	try {
+		std::cout << "[RUN] python build_submission.py\n";
+		string submission_script = (exe_path / "scripts" / "build_kaggle_submission.py").string();
+		if (!fs::exists(submission_script)) {
+			std::cout << "[WARN] No se encontró " << submission_script << " — se omite creación de submission.csv\n";
+			return 0;
 		}
-
-		// Leer predicciones
-		vector<int> y_pred_final = read_predicted_classes(pred_final);
-
-		// Calcular métricas
-		double acc_final = accuracy(y_true_final, y_pred_final);
-		double f1_final = f1_score_macro(y_true_final, y_pred_final);
-		double kappa_final = cohen_kappa(y_true_final, y_pred_final);
-
-		cout << CYAN << BOLD << "\n📊 Metricas del modelo final sobre todo el dataset:" << endl;
-		cout << YELLOW << " - Accuracy: " << acc_final << endl;
-		cout << YELLOW << " - F1 macro: " << f1_final << endl;
-		cout << YELLOW << " - Kappa: " << kappa_final << RESET << endl;
-
-		// Matriz de confusión
-		vector<vector<int>> matrix(NUM_CLASSES, vector<int>(NUM_CLASSES, 0));
-		for (size_t i = 0; i < y_true_final.size(); ++i) {
-			matrix[y_true_final[i]][y_pred_final[i]]++;
-		}
-		cout << "\n🧩 Matriz de confusion del modelo final:" << endl;
-		for (int i = 0; i < NUM_CLASSES; ++i) {
-			for (int j = 0; j < NUM_CLASSES; ++j) {
-				cout << matrix[i][j] << "\t";
-			}
-			cout << endl;
-		}
-
-		// Guardar archivos
-		string final_matrix_csv = (exe_path / "matriz_confusion_final.csv").string();
-		string y_true_final_csv = (exe_path / "y_true_final.csv").string();
-		string y_pred_final_csv = (exe_path / "y_pred_final.csv").string();
-		string y_pred_vs_true = (exe_path / "y_pred_vs_true_final.csv").string();
-		save_vector_to_csv(y_true_final_csv, y_true_final);
-		save_vector_to_csv(y_pred_final_csv, y_pred_final);
-		save_combined_csv(y_pred_vs_true, y_true_final, y_pred_final);
-
-		ofstream fout(final_matrix_csv);
-		for (int i = 0; i < NUM_CLASSES; ++i) {
-			for (int j = 0; j < NUM_CLASSES; ++j) {
-				fout << matrix[i][j];
-				if (j < NUM_CLASSES - 1) fout << ",";
-			}
-			fout << "\n";
-		}
-		fout.close();
-
-		// Generar imagen de matriz
-		fs::path script_plot = exe_path / "scripts" / "plot_confusion_matrix.py";
-		fs::path output_img = exe_path / "conf_matrix_final.png";
-		string python_cmd = "python \"" + script_plot.string() + "\" \"" + y_true_final_csv + "\" \"" + y_pred_final_csv + "\" \"" + output_img.string() + "\"";
-		system(python_cmd.c_str());
-
-		// Insertar en SQLite
-		string conf_str = read_config(config_final_file);
-		int result_id = insert_result_sqlite(acc_final, f1_final, kappa_final, model_final.string(), config_final_file, conf_str);
-		if (result_id != -1) {
-			insert_predictions_sqlite(y_true_final, y_pred_final, result_id);
-			save_best_model();  // Marca como modelo final
-		}
+		else
+			system(("python \"" + submission_script + "\"").c_str());
+	}
+	catch (...) {
+		std::cout << "[WARN] No se pudo ejecutar build_submission.py automáticamente. "
+			"Ejecuta: python build_submission.py\n";
 	}
 
 	return 0;
 }
-

@@ -1,0 +1,4 @@
+task=predict
+input_model=folds/model_holdout.txt
+data=folds/holdout_valid.txt
+output_result=folds/predictions_holdout.txt

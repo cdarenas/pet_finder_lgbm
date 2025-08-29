@@ -76,6 +76,65 @@ double cohen_kappa(const std::vector<int>& y_true, const std::vector<int>& y_pre
 	return (pe < 1.0) ? (po - pe) / (1.0 - pe) : 0.0;
 }
 
+// Quadratic Weighted Kappa
+double quadratic_weighted_kappa(const std::vector<int>& y_true, const std::vector<int>& y_pred, int num_classes) {
+	if (y_true.size() != y_pred.size() || y_true.empty()) return 0.0;
+
+	const int N = static_cast<int>(y_true.size());
+
+	// Matriz de confusión O (observada)
+	std::vector<std::vector<double>> O(num_classes, std::vector<double>(num_classes, 0.0));
+	// Histogramas por clase
+	std::vector<double> hist_true(num_classes, 0.0), hist_pred(num_classes, 0.0);
+
+	for (size_t i = 0; i < y_true.size(); ++i) {
+		int t = y_true[i];
+		int p = y_pred[i];
+		if (t >= 0 && t < num_classes && p >= 0 && p < num_classes) {
+			O[t][p] += 1.0;
+			hist_true[t] += 1.0;
+			hist_pred[p] += 1.0;
+		}
+	}
+
+	// Matriz de pesos W_ij = (i - j)^2 / (K - 1)^2
+	const double denom_w = (num_classes > 1) ? ((num_classes - 1.0) * (num_classes - 1.0)) : 1.0;
+	std::vector<std::vector<double>> W(num_classes, std::vector<double>(num_classes, 0.0));
+	for (int i = 0; i < num_classes; ++i) {
+		for (int j = 0; j < num_classes; ++j) {
+			double diff = static_cast<double>(i - j);
+			W[i][j] = (diff * diff) / denom_w;
+		}
+	}
+
+	// Matriz esperada E = outer(hist_true, hist_pred) / N
+	std::vector<std::vector<double>> E(num_classes, std::vector<double>(num_classes, 0.0));
+	for (int i = 0; i < num_classes; ++i) {
+		for (int j = 0; j < num_classes; ++j) {
+			E[i][j] = (hist_true[i] * hist_pred[j]) / static_cast<double>(N);
+		}
+	}
+
+	// Sumas ponderadas
+	double sum_w_o = 0.0;
+	double sum_w_e = 0.0;
+	for (int i = 0; i < num_classes; ++i) {
+		for (int j = 0; j < num_classes; ++j) {
+			sum_w_o += W[i][j] * O[i][j];
+			sum_w_e += W[i][j] * E[i][j];
+		}
+	}
+
+	if (sum_w_e <= 0.0) {
+		// Sin variación esperada; evita división por cero
+		return 0.0;
+	}
+
+	// QWK = 1 - (sum(W * O) / sum(W * E))
+	double kappa = 1.0 - (sum_w_o / sum_w_e);
+	return kappa;
+}
+
 // Imprimir matriz de confusión
 void print_confusion_matrix(const std::vector<int>& y_true, const std::vector<int>& y_pred) {
 	const int NUM_CLASSES = 5;

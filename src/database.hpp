@@ -17,4 +17,6 @@ void save_best_model_by_kappa();
 
 void save_final_model(const std::string& db_path, const std::string& model_path, const std::string& config_path);
 
+bool sqlite_table_exists(const std::string& db_path, const std::string& table_name);
+
 #endif // DATABASE_HPP
