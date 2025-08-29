@@ -1,4 +1,4 @@
-# 🐾 PetFinderLGBM - Adoption Speed Classifier
+# PetFinderLGBM - Adoption Speed Classifier
 
 **Autor:** Cristian Arenas  
 **Lenguajes:** C++ y Python  
@@ -8,7 +8,7 @@
 
 ---
 
-## 📌 Descripción del proyecto
+## Descripción del proyecto
 
 Este proyecto implementa un pipeline completo para el entrenamiento y evaluación de un modelo de clasificación multiclase que predice la velocidad de adopción de mascotas (`AdoptionSpeed`). Utiliza LightGBM en su versión nativa, con un aplicación en C++ para control total del proceso y scripts en Python para análisis visual de resultados.
 El modelo es entrenado usando validación cruzada K-Fold (5 folds) y también se entrena un modelo final con todo el dataset. Los resultados se almacenan en SQLite y se visualizan mediante gráficos generados con Python.
@@ -16,7 +16,7 @@ Dataset (train.csv) utilizado en el pipeline descargado desde Kaggle: https://ww
 
 ---
 
-## 🧰 Requisitos
+## Requisitos
 
 - Windows 10/11 64-bit
 - Python 3.x (para visualización)
@@ -26,7 +26,7 @@ Dataset (train.csv) utilizado en el pipeline descargado desde Kaggle: https://ww
 
 ---
 
-## 🚀 Cómo ejecutar
+## Cómo ejecutar
 
 Clonar el proyecto localmente desde tu máquina.
 
@@ -168,7 +168,7 @@ Entrenamiento Final sobre todo el Dataset:
 
 ---
 
-## 📊 Métricas utilizadas
+## Métricas utilizadas
 
 - **Accuracy**
 - **F1 Macro**
@@ -178,7 +178,7 @@ Entrenamiento Final sobre todo el Dataset:
 
 ---
 
-## 🖼️ Visualizaciones
+## Visualizaciones
 
 Se generan automáticamente:
 
@@ -190,7 +190,7 @@ Se generan automáticamente:
 
 ---
 
-## 🧪 Base de datos SQLite
+## Base de datos SQLite
 
 El archivo `resultados.db` guarda:
 
@@ -202,7 +202,7 @@ Esto permite trazabilidad, auditoría y reanálisis.
 
 ---
 
-## ✅ Ventajas de esta implementación
+## Ventajas de esta implementación
 
 - Máximo rendimiento gracias al uso de **LightGBM nativo en C++**
 - Código modular y reutilizable
@@ -210,15 +210,4 @@ Esto permite trazabilidad, auditoría y reanálisis.
 - Resultados persistentes en **SQLite**
 - Ideal para **entornos productivos** o **análisis robustos** en competencias
 
----
 
-## 📬 Contacto
-
-Para consultas o mejoras:  
-**Cristian Arenas** – cdarenas78@gmail.com
-
----
-
-## 📝 Licencia
-
-MIT License.
